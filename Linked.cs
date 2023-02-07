@@ -33,6 +33,20 @@ namespace Linked
             Configuration<LinkedSettings>.Load(nameof(Linked));
             settings = Configuration<LinkedSettings>.Settings;
 
+            if(settings.IsDataCentral == false)
+            {
+                if (string.IsNullOrEmpty(settings.CentralServer))
+                {
+                    Console.WriteLine("No data centre has been set up! Please enter a valid data centre in the config.");
+                }
+                else
+                {
+                    Auxiliary.StorageProvider.Configuration.DatabaseName = settings.CentralServer;
+                }
+                
+                
+            }
+
             // initial sync of ranks, from DB (central) -> server (local)
             ranks.Initialize();
 

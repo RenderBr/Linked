@@ -12,5 +12,8 @@ namespace Linked
     {
         [JsonPropertyName("IsDataCentral")]
         public bool IsDataCentral { get; set; }
+
+        [JsonPropertyName("CentralServer")]
+        public string CentralServer { get; set; }
     }
 }
