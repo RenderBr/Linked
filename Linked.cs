@@ -43,20 +43,6 @@ namespace Linked
             Configuration<LinkedSettings>.Load(nameof(Linked));
             settings = Configuration<LinkedSettings>.Settings;
 
-            if(settings.IsDataCentral == false)
-            {
-                if (string.IsNullOrEmpty(settings.CentralServer))
-                {
-                    Console.WriteLine("No data centre has been set up! Please enter a valid data centre in the config.");
-                }
-                else
-                {
-                    Auxiliary.StorageProvider.Configuration.LinkedbaseName = settings.CentralServer;
-                }
-                
-                
-            }
-
             // build command modules
             await _fx.BuildModulesAsync(typeof(Linked).Assembly);
 
