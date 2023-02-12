@@ -1,16 +1,8 @@
 ﻿using Auxiliary;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Text;
-using System.Threading.Tasks;
-using TShockAPI;
-using ZstdSharp.Unsafe;
 
 namespace Linked.Models
 {
-    public class LinkedRankData : BsonModel
+    public class LinkedRankData : LinkedModel
     {
         private string _name = string.Empty;
         public string Name

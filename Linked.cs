@@ -1,7 +1,10 @@
 ﻿using Auxiliary;
 using Auxiliary.Configuration;
+using CSF;
+using CSF.TShock;
 using Linked.Events;
 using Linked.Models;
+using Org.BouncyCastle.Asn1.Pkcs;
 using System.Configuration;
 using Terraria;
 using TerrariaApi.Server;
@@ -21,10 +24,17 @@ namespace Linked
 
         public static LinkedSettings settings;
 
-        public Ranks ranks = new Ranks();
+        public static Ranks ranks = new Ranks();
+
+        public static LocalSetup local = new LocalSetup();
+        private readonly TSCommandFramework _fx;
 
         public Linked(Main game) : base(game)
         {
+            _fx = new(new CommandConfiguration()
+            {
+                DoAsynchronousExecution = false
+            });
         }
 
         public async override void Initialize()
@@ -41,14 +51,20 @@ namespace Linked
                 }
                 else
                 {
-                    Auxiliary.StorageProvider.Configuration.DatabaseName = settings.CentralServer;
+                    Auxiliary.StorageProvider.Configuration.LinkedbaseName = settings.CentralServer;
                 }
                 
                 
             }
 
+            // build command modules
+            await _fx.BuildModulesAsync(typeof(Linked).Assembly);
+
             // initial sync of ranks, from DB (central) -> server (local)
             ranks.Initialize();
+
+            // initial local permission, addition and negation
+            local.InitLocalPermissions();
 
             // register reload event
             GeneralHooks.ReloadEvent += (x) =>
@@ -60,20 +76,7 @@ namespace Linked
             // register events
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer);
             PlayerHooks.PlayerPostLogin += PostLogin;
-
-            // register /lsync command
-            Commands.ChatCommands.Add(new Command("tbc.admin", Sync, "sync", "linkedsync", "lsync"));
         }
-
-
-        #region Sync Command
-        private void Sync(CommandArgs args)
-        {
-            ranks.Initialize(); // re-sync ranks from DB (central) -> server (local)
-            args.Player.SendSuccessMessage("Ranks have been synced with the database.");
-            return;
-        }
-        #endregion
 
         #region On Player Join
         //when a player joins the server
@@ -86,12 +89,12 @@ namespace Linked
                         return;
 
                     // grab player data from central, based on UUID
-                    LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Bson<LinkedPlayerData>(x => x.UUID == player.UUID));
+                    LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID));
 
                     // if the data cannot be found, kick the player. They should have an account on data centre before they connect
                     // to survival. This essentially means, they do not have an account on the main server. (unregistered)
                     if (data == null) { player.Disconnect("Please create an account on the main TBC server first. (/hub)"); return; }
-
+                    
                     // attempt to grab an already created account (they have joined before, and their data is already synced
                     var account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
                     if(account == null) // if the account cannot be found, create it
@@ -119,14 +122,14 @@ namespace Linked
 
             if (settings.IsDataCentral == true)
             {
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Bson<LinkedPlayerData>(x => x.UUID == player.UUID), x =>
+                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID), x =>
                 {
                     x.UUID = player.UUID;
                     x.Account = player.Account;
                 });
             }
             else {
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Bson<LinkedPlayerData>(x => x.UUID == player.UUID));
+                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID));
                 if (data == null)
                     return;
 

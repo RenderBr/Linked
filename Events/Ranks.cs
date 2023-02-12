@@ -19,7 +19,7 @@ namespace Linked.Events
             {
                 foreach (Group group in TShock.Groups.groups)
                 {
-                    LinkedRankData? data = await IModel.GetAsync(GetRequest.Bson<LinkedRankData>(x => x.Name == group.Name), x =>
+                    LinkedRankData? data = await IModel.GetAsync(GetRequest.Linked<LinkedRankData>(x => x.Name == group.Name), x =>
                     {
                         x.Name = group.Name;
                         x.Group = new Rank {
@@ -40,7 +40,7 @@ namespace Linked.Events
             }
             else
             {
-                var temp = await StorageProvider.GetMongoCollection<LinkedRankData>("LinkedRankDatas").FindAsync(Builders<LinkedRankData>.Filter.Empty);
+                var temp = await StorageProvider.GetLinkedCollection<LinkedRankData>("LinkedRankDatas").FindAsync(Builders<LinkedRankData>.Filter.Empty);
 
                 List<LinkedRankData> ranks = await temp.ToListAsync();
 

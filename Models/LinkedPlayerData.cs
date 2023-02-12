@@ -8,7 +8,7 @@ using TShockAPI.DB;
 
 namespace Linked.Models
 {
-    public class LinkedPlayerData : BsonModel
+    public class LinkedPlayerData : LinkedModel
     {
         private string _uuid = string.Empty;
         public string UUID
