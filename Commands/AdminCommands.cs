@@ -2,11 +2,6 @@
 using CSF;
 using CSF.TShock;
 using Linked.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TShockAPI;
 
 namespace Linked
@@ -19,8 +14,9 @@ namespace Linked
         [Description("Syncs the local server's ranks with the central database")]
         public async Task<IResult> SyncRanks()
         {
+            // let the player know
             await RespondAsync("Syncing ranks...");
-            try
+            try // it will either succeed or send a fail message if an error is found
             {
                 Linked.ranks.Initialize();
                 Linked.local.InitLocalPermissions();
@@ -36,26 +32,28 @@ namespace Linked
         [Description("Allows the negation and allowance of certain permissions to groups. This is done locally.")]
         public async Task<IResult> PermManager(string sub = "", string group = "", string perm = "")
         {
-            if (group == "" && (sub != "" || sub != "help"))
+            if (group == "" && !(sub == "" || sub == "help")) // if group is empty but sub is not
                 return Error("Please enter a group name to modify!");
 
-            if (perm == "" && (sub != "" || sub != "help"))
+            if (perm == "" && !(sub == "" || sub == "help")) // if perm is empty but sub is not
                 return Error("Please enter a permission node!");
-            
-            LocalPermissions? grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x=>x.Rank==group));
-            if(grp is null)
+
+            // retrieve group
+            LocalPermissions? grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group));
+            if (grp is null) // if it cannot be retrieved
             {
+                // check if it exists in linked DB
                 var temp = await IModel.GetAsync(GetRequest.Linked<LinkedRankData>(x => x.Name == group));
-                if (temp != null)
+                if (temp != null) // if it does, create it in linked permissions
                 {
-                    grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group), x => { x.Rank = group; }) ;
+                    grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group), x => { x.Rank = group; });
                 }
-                else return Error("That group does not exist!");
+                else return Error("That group does not exist!"); // otherwise, return an error (probably user mispelt group name)
             }
-            
-            switch (sub)
+
+            switch (sub) // switch between various command arguments
             {
-                case "addperm":
+                case "addperm": // user is attempting to add a local perm
                 case "add":
                 case "allow":
                     {
@@ -70,7 +68,7 @@ namespace Linked
                 case "delete":
                 case "rem":
                 case "remove":
-                case "negate":
+                case "negate": // user is attempting to negate a local perm
                     {
                         List<string> temp = grp.Negated;
                         temp.Add(perm);
@@ -79,7 +77,7 @@ namespace Linked
                         return Success("The permission was negated locally!");
                     }
                 default:
-                case "help":
+                case "help": // user either entered no args or wrote "help"
                     Info("All /pm commands -");
                     Info("/pm negate <group> <perm> - removes a permission locally");
                     Info("/pm allow <group> <perm> - allows a permission locally");

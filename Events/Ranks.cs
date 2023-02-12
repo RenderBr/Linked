@@ -1,55 +1,52 @@
 ﻿using Auxiliary;
 using Linked.Models;
 using MongoDB.Driver;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TShockAPI;
 
 namespace Linked.Events
 {
     public class Ranks
     {
+        #region Initialize Ranks
         public async void Initialize()
         {
-            if(Linked.settings.IsDataCentral == true)
+            if (Linked.settings.IsDataCentral == true) // if data centre
             {
-                foreach (Group group in TShock.Groups.groups)
+                foreach (Group group in TShock.Groups.groups) // loop through each group
                 {
                     LinkedRankData? data = await IModel.GetAsync(GetRequest.Linked<LinkedRankData>(x => x.Name == group.Name), x =>
                     {
                         x.Name = group.Name;
-                        x.Group = new Rank {
+                        x.Group = new Rank
+                        {
                             Name = group.Name,
                             Prefix = group.Prefix,
                             R = group.R,
                             G = group.G,
                             B = group.B,
-                            Parent = (group.Parent == null ? "" : group.Parent.Name),
+                            Parent = group.Parent == null ? "" : group.Parent.Name,
                             Suffix = group.Suffix,
                             Permissions = group.Permissions
                         };
-                       
+                        // and add them to the linked database if they don't exist
 
                     });
                 }
                 return;
             }
-            else
+            else // if not data centre
             {
+                // retrieve all linked rank data and store it as a list
                 var temp = await StorageProvider.GetLinkedCollection<LinkedRankData>("LinkedRankDatas").FindAsync(Builders<LinkedRankData>.Filter.Empty);
-
                 List<LinkedRankData> ranks = await temp.ToListAsync();
 
-                foreach(LinkedRankData rank in ranks)
+                foreach (LinkedRankData rank in ranks) // loop through each rank
                 {
-                    string parent = (rank.Group.Parent == null ? "" : rank.Group.Parent);
+                    // store some initial variables to reduce boilerplate
+                    string parent = rank.Group.Parent == null ? "" : rank.Group.Parent;
                     string chatcolor = $"{rank.Group.R},{rank.Group.B},{rank.Group.G}";
 
-                    if (TShock.Groups.GroupExists(rank.Group.Name))
+                    if (TShock.Groups.GroupExists(rank.Group.Name)) // check if exists, and if it does just modify it appropriately
                     {
                         Group group = TShock.Groups.GetGroupByName(rank.Name);
                         group.Parent = TShock.Groups.GetGroupByName(rank.Group.Parent == null ? "" : rank.Group.Parent);
@@ -62,12 +59,14 @@ namespace Linked.Events
                         group.ChatColor = chatcolor;
                         continue;
                     }
+                    // if it does not exist, add the group
                     TShock.Groups.AddGroup(rank.Group.Name, parent, rank.Group.Permissions, chatcolor);
                     TShock.Groups.UpdateGroup(rank.Group.Name, parent, rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
                 }
             }
 
-         
+
         }
+        #endregion
     }
 }
