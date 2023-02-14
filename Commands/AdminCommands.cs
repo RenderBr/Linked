@@ -32,12 +32,6 @@ namespace Linked
         [Description("Allows the negation and allowance of certain permissions to groups. This is done locally.")]
         public async Task<IResult> PermManager(string sub = "", string group = "", string perm = "")
         {
-            if (group == "" && !(sub == "" || sub == "help")) // if group is empty but sub is not
-                return Error("Please enter a group name to modify!");
-
-            if (perm == "" && !(sub == "" || sub == "help")) // if perm is empty but sub is not
-                return Error("Please enter a permission node!");
-
             // retrieve group
             LocalPermissions? grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group));
             if (grp is null) // if it cannot be retrieved
@@ -57,6 +51,11 @@ namespace Linked
                 case "add":
                 case "allow":
                     {
+                        if (group == "")
+                            return Error("You must specify a group!");
+                        if (perm == "")
+                            return Error("You must specify a permission!");
+
                         List<string> temp = grp.Allowed;
                         temp.Add(perm);
                         grp.Allowed = temp;
@@ -70,6 +69,10 @@ namespace Linked
                 case "remove":
                 case "negate": // user is attempting to negate a local perm
                     {
+                        if (group == "")
+                            return Error("You must specify a group!");
+                        if (perm == "")
+                            return Error("You must specify a permission!");
                         List<string> temp = grp.Negated;
                         temp.Add(perm);
                         grp.Negated = temp;

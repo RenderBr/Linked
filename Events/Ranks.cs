@@ -57,6 +57,7 @@ namespace Linked.Events
                     TShock.Groups.AddGroup(rank.Group.Name, "", rank.Group.Permissions, chatcolor);
                     TShock.Groups.UpdateGroup(rank.Group.Name, "", rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
                 }
+                Console.WriteLine("All ranks have been pre-initialized locally!");
                 await SetupParenting();
             }
 
@@ -66,6 +67,7 @@ namespace Linked.Events
         // must be done after rank initializations
         public async Task SetupParenting()
         {
+            Console.WriteLine("Parents are being inherited by their respective ranks...");
             var temp = await StorageProvider.GetLinkedCollection<LinkedRankData>("LinkedRankDatas").FindAsync(Builders<LinkedRankData>.Filter.Empty);
             List<LinkedRankData> ranks = await temp.ToListAsync();
 
@@ -76,6 +78,7 @@ namespace Linked.Events
                 string chatcolor = $"{rank.Group.R},{rank.Group.G},{rank.Group.B}";
                 TShock.Groups.UpdateGroup(rank.Group.Name, rank.Group.Parent, rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
             }
+            Console.WriteLine("Ranks have been fully initialized locally!");
         }
         #endregion
 

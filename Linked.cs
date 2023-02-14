@@ -107,7 +107,9 @@ namespace Linked
                 player.Group = TShock.Groups.GetGroupByName(account.Group);
 
                 // greet the player
+#if DEBUG
                 player.SendSuccessMessage($"Welcome back, {player.Name}!");
+#endif
             }
         }
         #endregion
@@ -122,21 +124,15 @@ namespace Linked
 
             if (settings.IsDataCentral == true) // if central server
             {
+                // retrieve player data, OR CREATE IT
                 LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID), x =>
                 {
                     x.UUID = player.UUID;
                     x.Account = player.Account;
                 });
-                // retrieve player data, OR CREATE IT
-            }
-            else // if not central 
-            {
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID));
-                if (data == null)
-                    return;
-                // attempt to retrieve player data and don't create it if not found
 
-
+                //update the player account
+                data.Account = player.Account;
             }
 
         }
