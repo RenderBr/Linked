@@ -45,10 +45,10 @@ namespace Linked
             await _fx.BuildModulesAsync(typeof(Linked).Assembly);
 
             // initial sync of ranks, from DB (central) -> server (local)
-            ranks.Initialize();
+            await ranks.Initialize();
 
             // initial local permission, addition and negation
-            local.InitLocalPermissions();
+            await local.InitLocalPermissions();
 
             // register reload event
             GeneralHooks.ReloadEvent += (x) =>
@@ -84,9 +84,22 @@ namespace Linked
                 var account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
                 if (account == null) // if the account cannot be found, create it
                 {
-                    UserAccount temp = data.Account;
+                    UserAccount temp = new UserAccount()
+                    {
+                        Name = data.Account.Name,
+                        Group = data.Account.Group
+                    };
+
                     TShock.UserAccounts.AddUserAccount(temp);
                     account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
+
+                    TShock.UserAccounts.SetUserAccountUUID(account, data.Account.UUID);
+                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
+                    TShock.UserAccounts.SetUserAccountPassword(account, data.Account.Password);
+                }
+                else
+                {
+                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
                 }
 
                 // set the player's account and group

@@ -8,7 +8,7 @@ namespace Linked.Events
     public class LocalSetup
     {
         #region Initialize Local Permissions
-        public async void InitLocalPermissions()
+        public async Task InitLocalPermissions()
         {
             // retrieve all local permissions and store as a list
             var temp = await StorageProvider.GetMongoCollection<LocalPermissions>("LocalPermissions").FindAsync(Builders<LocalPermissions>.Filter.Empty);
