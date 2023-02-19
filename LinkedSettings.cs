@@ -7,5 +7,14 @@ namespace Linked
     {
         [JsonPropertyName("IsDataCentral")]
         public bool IsDataCentral { get; set; }
+
+        [JsonPropertyName("DisableRegistrations")]
+        public bool DisableRegistrations { get; set; }
+
+        [JsonPropertyName("ForceAccountMadeAlready")]
+        public bool ForceAccountMadeAlready { get; set; }
+
+        [JsonPropertyName("AutoLogin")]
+        public bool AutoLogin { get; set; } = true;
     }
 }
