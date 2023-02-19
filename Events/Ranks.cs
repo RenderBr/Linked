@@ -8,7 +8,7 @@ namespace Linked.Events
     public class Ranks
     {
         #region Initialize Ranks
-        public async void Initialize()
+        public async Task Initialize()
         {
             if (Linked.settings.IsDataCentral == true) // if data centre
             {
@@ -42,31 +42,46 @@ namespace Linked.Events
 
                 foreach (LinkedRankData rank in ranks) // loop through each rank
                 {
+                    if (rank.Group.Name == "superadmin")
+                        continue;
                     // store some initial variables to reduce boilerplate
                     string parent = rank.Group.Parent == null ? "" : rank.Group.Parent;
-                    string chatcolor = $"{rank.Group.R},{rank.Group.B},{rank.Group.G}";
+                    string chatcolor = $"{rank.Group.R},{rank.Group.G},{rank.Group.B}";
 
                     if (TShock.Groups.GroupExists(rank.Group.Name)) // check if exists, and if it does just modify it appropriately
                     {
-                        Group group = TShock.Groups.GetGroupByName(rank.Name);
-                        group.Parent = TShock.Groups.GetGroupByName(rank.Group.Parent == null ? "" : rank.Group.Parent);
-                        group.Permissions = rank.Group.Permissions;
-                        group.R = (byte)rank.Group.R;
-                        group.B = (byte)rank.Group.B;
-                        group.G = (byte)rank.Group.G;
-                        group.Prefix = rank.Group.Prefix;
-                        group.Suffix = rank.Group.Suffix;
-                        group.ChatColor = chatcolor;
+                        TShock.Groups.UpdateGroup(rank.Group.Name, "", rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
                         continue;
                     }
                     // if it does not exist, add the group
-                    TShock.Groups.AddGroup(rank.Group.Name, parent, rank.Group.Permissions, chatcolor);
-                    TShock.Groups.UpdateGroup(rank.Group.Name, parent, rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
+                    TShock.Groups.AddGroup(rank.Group.Name, "", rank.Group.Permissions, chatcolor);
+                    TShock.Groups.UpdateGroup(rank.Group.Name, "", rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
                 }
+                Console.WriteLine("All ranks have been pre-initialized locally!");
+                await SetupParenting();
             }
 
 
         }
+        
+        // must be done after rank initializations
+        public async Task SetupParenting()
+        {
+            Console.WriteLine("Parents are being inherited by their respective ranks...");
+            var temp = await StorageProvider.GetLinkedCollection<LinkedRankData>("LinkedRankDatas").FindAsync(Builders<LinkedRankData>.Filter.Empty);
+            List<LinkedRankData> ranks = await temp.ToListAsync();
+
+            foreach (LinkedRankData rank in ranks) // loop through each rank
+            {
+                if (rank.Group.Name == "superadmin")
+                    continue;
+                string chatcolor = $"{rank.Group.R},{rank.Group.G},{rank.Group.B}";
+                TShock.Groups.UpdateGroup(rank.Group.Name, rank.Group.Parent, rank.Group.Permissions, chatcolor, rank.Group.Suffix, rank.Group.Prefix);
+            }
+            Console.WriteLine("Ranks have been fully initialized locally!");
+        }
         #endregion
+
+
     }
 }

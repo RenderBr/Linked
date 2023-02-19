@@ -46,10 +46,10 @@ namespace Linked
             await _fx.BuildModulesAsync(typeof(Linked).Assembly);
 
             // initial sync of ranks, from DB (central) -> server (local)
-            ranks.Initialize();
+            await ranks.Initialize();
 
             // initial local permission, addition and negation
-            local.InitLocalPermissions();
+            await local.InitLocalPermissions();
 
             //disable / enable registrations
             if (settings.DisableRegistrations == true)
@@ -110,9 +110,22 @@ namespace Linked
                 var account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
                 if (account == null) // if the account cannot be found, create it
                 {
-                    UserAccount temp = data.Account;
+                    UserAccount temp = new UserAccount()
+                    {
+                        Name = data.Account.Name,
+                        Group = data.Account.Group
+                    };
+
                     TShock.UserAccounts.AddUserAccount(temp);
                     account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
+
+                    TShock.UserAccounts.SetUserAccountUUID(account, data.Account.UUID);
+                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
+                    TShock.UserAccounts.SetUserAccountPassword(account, data.Account.Password);
+                }
+                else
+                {
+                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
                 }
 
                 // set the player's account and group (if auto login enabled)
@@ -123,7 +136,9 @@ namespace Linked
                 player.Group = TShock.Groups.GetGroupByName(account.Group);
 
                 // greet the player
+#if DEBUG
                 player.SendSuccessMessage($"Welcome back, {player.Name}!");
+#endif
             }
         }
         #endregion
@@ -138,21 +153,15 @@ namespace Linked
 
             if (settings.IsDataCentral == true) // if central server
             {
+                // retrieve player data, OR CREATE IT
                 LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID), x =>
                 {
                     x.UUID = player.UUID;
                     x.Account = player.Account;
                 });
-                // retrieve player data, OR CREATE IT
-            }
-            else // if not central 
-            {
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID));
-                if (data == null)
-                    return;
-                // attempt to retrieve player data and don't create it if not found
 
-
+                //update the player account
+                data.Account = player.Account;
             }
 
         }
