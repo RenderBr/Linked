@@ -26,6 +26,7 @@ namespace Linked
         public static LocalSetup local = new LocalSetup();
         private readonly TSCommandFramework _fx;
 
+        
         public Linked(Main game) : base(game)
         {
             _fx = new(new CommandConfiguration()
@@ -36,7 +37,7 @@ namespace Linked
 
         #region Initialization
         public async override void Initialize()
-        {
+        {            
             // load Linked.json and store it in settings
             Configuration<LinkedSettings>.Load(nameof(Linked));
             settings = Configuration<LinkedSettings>.Settings;
@@ -47,10 +48,16 @@ namespace Linked
             // initial sync of ranks, from DB (central) -> server (local)
             await ranks.Initialize();
 
+            //disable / enable registrations
+            if (settings.DisableRegistrations == true)
+                TShock.Groups.DeletePermissions("default", new List<string>() { "tshock.account.register" });
+            else
+                TShock.Groups.AddPermissions("default", new List<string>() { "tshock.account.register" });
+           
             // register reload event
             GeneralHooks.ReloadEvent += (x) =>
             {
-                Configuration<LinkedSettings>.Load(nameof(Linked)); // load config
+                Reload();
                 x.Player.SendSuccessMessage("[Linked] Reloaded configuration.");
             };
 
@@ -60,6 +67,22 @@ namespace Linked
 
             // initial local permission, addition and negation
             await local.InitLocalPermissions();
+        }
+        #endregion
+
+        #region Reload Method
+        private void Reload()
+        {
+            Configuration<LinkedSettings>.Load(nameof(Linked));
+            settings = Configuration<LinkedSettings>.Settings;
+
+            if(settings.DisableRegistrations == true)
+                TShock.Groups.DeletePermissions("default", new List<string>() { "tshock.account.register" });
+            else
+                TShock.Groups.AddPermissions("default", new List<string>() { "tshock.account.register" });
+
+            ranks.Initialize();
+            local.InitLocalPermissions();
         }
         #endregion
 
@@ -73,12 +96,15 @@ namespace Linked
                 if (player == null) // if can't be found, maybe they did not connect properly, return
                     return;
 
-                // grab player data from central, based on UUID
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID));
+                // grab player data from central, based on UUID & IP
+                // note: the reason we are using IP is to prevent UUID spoofing, which would allow users to login to other accounts
+                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID && x.Account.KnownIps.Contains(player.IP)));
 
+                bool shouldKick = ((await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.Account.KnownIps.Contains(player.IP))) == null ? true : false));
+                
                 // if the data cannot be found, kick the player. They should have an account on data centre before they connect
                 // to survival. This essentially means, they do not have an account on the main server. (unregistered)
-                if (data == null) { player.Disconnect("Please create an account on the main TBC server first. (/hub)"); return; }
+                if (data == null && (settings.ForceAccountMadeAlready && shouldKick)) { player.Disconnect("Please create an account on the main TBC server first. (/hub)"); return; }
 
                 // attempt to grab an already created account (they have joined before, and their data is already synced
                 var account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
@@ -104,7 +130,10 @@ namespace Linked
 
                 player.PlayerData = TShock.CharacterDB.GetPlayerData(player, account.ID);
 
-                // set the player's account and group
+                // set the player's account and group (if auto login enabled)
+                if (settings.AutoLogin == false)
+                    return;
+                
                 player.Account = account;
                 player.Group = TShock.Groups.GetGroupByName(account.Group);
                 player.tempGroup = null;
