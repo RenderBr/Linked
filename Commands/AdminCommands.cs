@@ -18,8 +18,8 @@ namespace Linked
             await RespondAsync("Syncing ranks...");
             try // it will either succeed or send a fail message if an error is found
             {
-                Linked.ranks.Initialize();
-                Linked.local.InitLocalPermissions();
+                await Linked.ranks.Initialize();
+                await Linked.local.InitLocalPermissions();
                 return Success("Synced ranks!");
             }
             catch

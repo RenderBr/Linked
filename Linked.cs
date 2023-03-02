@@ -47,9 +47,6 @@ namespace Linked
             // initial sync of ranks, from DB (central) -> server (local)
             await ranks.Initialize();
 
-            // initial local permission, addition and negation
-            await local.InitLocalPermissions();
-
             // register reload event
             GeneralHooks.ReloadEvent += (x) =>
             {
@@ -60,6 +57,9 @@ namespace Linked
             // register events
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer);
             PlayerHooks.PlayerPostLogin += PostLogin;
+
+            // initial local permission, addition and negation
+            await local.InitLocalPermissions();
         }
         #endregion
 
@@ -102,9 +102,25 @@ namespace Linked
                     TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
                 }
 
+                player.PlayerData = TShock.CharacterDB.GetPlayerData(player, account.ID);
+
                 // set the player's account and group
                 player.Account = account;
                 player.Group = TShock.Groups.GetGroupByName(account.Group);
+                player.tempGroup = null;
+                player.IsLoggedIn = true;
+                player.IsDisabledForSSC = false;
+
+                if (Main.ServerSideCharacter)
+                {
+                    if (player.HasPermission(Permissions.bypassssc))
+                    {
+                        player.PlayerData.CopyCharacter(player);
+                        TShock.CharacterDB.InsertPlayerData(player);
+                    }
+                    player.PlayerData.RestoreCharacter(player);
+                }
+                player.LoginFailsBySsi = false;
 
                 // greet the player
 #if DEBUG
