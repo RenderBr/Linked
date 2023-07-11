@@ -29,8 +29,5 @@ namespace Linked.Models
                 _acc = value;
             }
         }
-
-
-
     }
 }

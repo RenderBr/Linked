@@ -35,7 +35,7 @@ namespace Linked
             });
         }
 
-        #region Initialization
+        #region Initialization & Hooks
         public async override void Initialize()
         {            
             // load Linked.json and store it in settings
@@ -63,6 +63,7 @@ namespace Linked
 
             // register events
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer);
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             PlayerHooks.PlayerPostLogin += PostLogin;
 
             // initial local permission, addition and negation
@@ -179,6 +180,28 @@ namespace Linked
                 //update the player account
                 data.Account = player.Account;
             }
+
+        }
+        #endregion
+        
+        #region On Player Leave
+        private async void OnLeave(LeaveEventArgs args)
+        {
+            //TODO: Actually test to see if this supplies appropriate info
+            TSPlayer player = TShock.Players[args.Who];
+            if (player == null)
+                return;
+            if (player.IsLoggedIn == false)
+                return;
+
+            var lastServer = await IModel.GetAsync(GetRequest.Linked<LastServer>(x => x.Account.ID == player.Account.ID), x => { x.Account = player.Account; x.LastServerName = Main.worldName; x.LastServerAddress = Main.getIP; x.LastServerPort = int.Parse(Main.getPort); });
+            if (lastServer.LastServerPort != int.Parse(Main.getPort) || lastServer.LastServerAddress != Main.getIP)
+            {
+                lastServer.LastServerPort = int.Parse(Main.getPort);
+                lastServer.LastServerAddress = Main.getIP;
+                lastServer.LastServerName = Main.getIP;
+            }
+
 
         }
         #endregion
