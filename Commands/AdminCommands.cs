@@ -22,27 +22,31 @@ namespace Linked
                 await Linked.Manager.SetupLocalPerms();
                 return Success("Synced ranks!");
             }
-            catch
+            catch (Exception e)
             {
+                TShock.Log.ConsoleError(e.ToString(), LogLevel.Error);
                 return Error("Failed to sync ranks!");
             }
         }
 
-        [Command("pm", "perms", "lperm", "permmanager")]
+        [Command("lm", "perms", "lperm", "permmanager", "linked")]
         [Description("Allows the negation and allowance of certain permissions to groups. This is done locally.")]
         public async Task<IResult> PermManager(string sub = "", string group = "", string perm = "")
         {
+            LocalPermissions? grp = null;
             // retrieve group
-            LocalPermissions? grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group));
-            if (grp is null) // if it cannot be retrieved
+            if (!string.IsNullOrWhiteSpace(group))
             {
-                // check if it exists in linked DB
-                var temp = await IModel.GetAsync(GetRequest.Linked<LinkedRankData>(x => x.Name == group));
-                if (temp != null) // if it does, create it in linked permissions
+                grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group));
+                if (grp is null) // if it cannot be retrieved
                 {
-                    grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group), x => { x.Rank = group; });
+                    // check if it exists in linked DB
+                    var temp = await IModel.GetAsync(GetRequest.Linked<LinkedRankData>(x => x.Name == group));
+                    if (temp != null) // if it does, create it in linked permissions
+                        grp = await IModel.GetAsync(GetRequest.Bson<LocalPermissions>(x => x.Rank == group), x => { x.Rank = group; });
+
+                    else return Error("That group does not exist!"); // otherwise, return an error (probably user mispelt group name)
                 }
-                else return Error("That group does not exist!"); // otherwise, return an error (probably user mispelt group name)
             }
 
             switch (sub) // switch between various command arguments
@@ -56,9 +60,8 @@ namespace Linked
                         if (perm == "")
                             return Error("You must specify a permission!");
 
-                        List<string> temp = grp.Allowed;
-                        temp.Add(perm);
-                        grp.Allowed = temp;
+                        grp.Allowed.Add(perm);
+                        await grp.SaveAsync(x => x.Allowed, grp.Allowed);
                         TShock.Groups.AddPermissions(grp.Rank, new List<string>() { perm });
                         return Success("The permission was added locally!");
                     }
@@ -73,9 +76,9 @@ namespace Linked
                             return Error("You must specify a valid group!");
                         if (perm == "")
                             return Error("You must specify a permission!");
-                        List<string> temp = grp.Negated;
-                        temp.Add(perm);
-                        grp.Negated = temp;
+
+                        grp.Negated.Add(perm);
+                        await grp.SaveAsync(x => x.Negated, grp.Negated);
                         TShock.Groups.DeletePermissions(grp.Rank, new List<string>() { perm });
                         return Success("The permission was negated locally!");
                     }
