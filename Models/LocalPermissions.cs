@@ -16,7 +16,7 @@ namespace Linked.Models
             }
         }
 
-        private List<string> _negated = new List<string>();
+        private List<string> _negated = new();
 
         public List<string> Negated
         {
@@ -29,7 +29,7 @@ namespace Linked.Models
             }
         }
 
-        private List<string> _allowed = new List<string>();
+        private List<string> _allowed = new();
 
         public List<string> Allowed
         {

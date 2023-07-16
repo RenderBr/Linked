@@ -18,8 +18,8 @@ namespace Linked
             await RespondAsync("Syncing ranks...");
             try // it will either succeed or send a fail message if an error is found
             {
-                await Linked.ranks.Initialize();
-                await Linked.local.InitLocalPermissions();
+                await Linked.Manager.InitializeServer();
+                await Linked.Manager.SetupLocalPerms();
                 return Success("Synced ranks!");
             }
             catch
@@ -51,8 +51,8 @@ namespace Linked
                 case "add":
                 case "allow":
                     {
-                        if (group == "")
-                            return Error("You must specify a group!");
+                        if (group == "" || grp == null)
+                            return Error("You must specify a valid group!");
                         if (perm == "")
                             return Error("You must specify a permission!");
 
@@ -69,8 +69,8 @@ namespace Linked
                 case "remove":
                 case "negate": // user is attempting to negate a local perm
                     {
-                        if (group == "")
-                            return Error("You must specify a group!");
+                        if (group == "" || grp == null)
+                            return Error("You must specify a valid group!");
                         if (perm == "")
                             return Error("You must specify a permission!");
                         List<string> temp = grp.Negated;

@@ -17,7 +17,7 @@ namespace Linked.Models
             }
         }
 
-        private UserAccount _acc;
+        private UserAccount _acc = new();
 
         public UserAccount Account
         {

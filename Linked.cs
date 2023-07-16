@@ -1,9 +1,6 @@
-﻿using Auxiliary;
-using Auxiliary.Configuration;
+﻿using Auxiliary.Configuration;
 using CSF;
 using CSF.TShock;
-using Linked.Events;
-using Linked.Models;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -17,16 +14,16 @@ namespace Linked
     {
         #region Plugin metadata
         public override string Name => "Linked";
-        public override string Description => "A facilitator for connecting server ranks & player accounts together";
+        public override string Description => "A facilitator for connecting multi-server ranks & player accounts together";
         public override string Author => "Average";
-        public override Version Version => new Version(1, 0, 0);
+        public override Version Version => new(1, 1, 0);
         #endregion
-        public static LinkedSettings settings;
-        public static Ranks ranks = new Ranks();
-        public static LocalSetup local = new LocalSetup();
-        private readonly TSCommandFramework _fx;
+        #region Linked Management Properties
+        public static LinkedManager Manager { get; set; } = new();
+        public static LinkedSettings Settings { get; set; } = new();
+        #endregion
 
-        
+        private readonly TSCommandFramework _fx;
         public Linked(Main game) : base(game)
         {
             _fx = new(new CommandConfiguration()
@@ -37,125 +34,90 @@ namespace Linked
 
         #region Initialization & Hooks
         public async override void Initialize()
-        {            
+        {
             // load Linked.json and store it in settings
             Configuration<LinkedSettings>.Load(nameof(Linked));
-            settings = Configuration<LinkedSettings>.Settings;
+            Settings = Configuration<LinkedSettings>.Settings;
 
             // build command modules
             await _fx.BuildModulesAsync(typeof(Linked).Assembly);
 
             // initial sync of ranks, from DB (central) -> server (local)
-            await ranks.Initialize();
+            await Manager.InitializeServer();
 
             //disable / enable registrations
-            if (settings.DisableRegistrations == true)
-                TShock.Groups.DeletePermissions("default", new List<string>() { "tshock.account.register" });
-            else
-                TShock.Groups.AddPermissions("default", new List<string>() { "tshock.account.register" });
-           
-            // register reload event
-            GeneralHooks.ReloadEvent += (x) =>
-            {
-                Reload();
-                x.Player.SendSuccessMessage("[Linked] Reloaded configuration.");
-            };
+            Manager.InitializeRegistrations();
 
             // register events
-            ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer);
+            ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             PlayerHooks.PlayerPostLogin += PostLogin;
 
             // initial local permission, addition and negation
-            await local.InitLocalPermissions();
+            await Manager.SetupLocalPerms();
         }
         #endregion
 
         #region Reload Method
-        private void Reload()
+        private async void Reload()
         {
             Configuration<LinkedSettings>.Load(nameof(Linked));
-            settings = Configuration<LinkedSettings>.Settings;
+            Settings = Configuration<LinkedSettings>.Settings;
 
-            if(settings.DisableRegistrations == true)
-                TShock.Groups.DeletePermissions("default", new List<string>() { "tshock.account.register" });
-            else
-                TShock.Groups.AddPermissions("default", new List<string>() { "tshock.account.register" });
+            Manager.InitializeRegistrations();
 
-            ranks.Initialize();
-            local.InitLocalPermissions();
+            await Manager.InitializeServer();
+            await Manager.SetupLocalPerms();
         }
         #endregion
 
         #region On Player Join
         //when a player joins the server
-        private async void OnGreetPlayer(GreetPlayerEventArgs args)
+        private async void OnServerJoin(JoinEventArgs args)
         {
-            if (settings.IsDataCentral == false) // if the server is not the data centre
+            TShock.Groups.LoadPermisions();
+            if (Settings.IsDataCentral == false) // if the server is not the data centre
             {
                 var player = TShock.Players[args.Who]; // grab player
                 if (player == null) // if can't be found, maybe they did not connect properly, return
                     return;
 
                 // grab player data from central, based on UUID & IP
-                // note: the reason we are using IP is to prevent UUID spoofing, which would allow users to login to other accounts
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID && x.Account.KnownIps.Contains(player.IP)));
+                var data = await Manager.SafeGet(player);
 
-                bool shouldKick = ((await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.Account.KnownIps.Contains(player.IP))) == null ? true : false));
-                
-                // if the data cannot be found, kick the player. They should have an account on data centre before they connect
-                // to survival. This essentially means, they do not have an account on the main server. (unregistered)
-                if (data == null && (settings.ForceAccountMadeAlready && shouldKick)) { player.Disconnect("Please create an account on the main TBC server first. (/hub)"); return; }
+                // if player is not registered, handle it based on cfg values
+                if (await Manager.HandleUnregistered(player, data) == true)
+                    return;
 
-                // attempt to grab an already created account (they have joined before, and their data is already synced
-                var account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
-                if (account == null) // if the account cannot be found, create it
-                {
-                    UserAccount temp = new UserAccount()
-                    {
-                        Name = data.Account.Name,
-                        Group = data.Account.Group
-                    };
+                // preventing null references
+                if (data == null)
+                    return;
 
-                    TShock.UserAccounts.AddUserAccount(temp);
-                    account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
+                // attempt to grab an already created account (they have joined before, and their data is already synced)
+                UserAccount account = TShock.UserAccounts.GetUserAccountByName(data.Account.Name);
 
-                    TShock.UserAccounts.SetUserAccountUUID(account, data.Account.UUID);
-                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
-                    TShock.UserAccounts.SetUserAccountPassword(account, data.Account.Password);
-                }
-                else
-                {
-                    TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
-                }
+                // if the account is null, create a new one
+                account = account == null ? Manager.CreateLocalUser(data) : account;
 
+                // set the user's group appropriately to the respective account
+                TShock.UserAccounts.SetUserGroup(account, data.Account.Group);
+
+                // set the player's SSC data
                 player.PlayerData = TShock.CharacterDB.GetPlayerData(player, account.ID);
 
-                // set the player's account and group (if auto login enabled)
-                if (settings.AutoLogin == false)
+                // if auto login is disabled, return
+                // let the user login themselves?
+                if (Settings.AutoLogin == false)
                     return;
-                
-                player.Account = account;
-                player.Group = TShock.Groups.GetGroupByName(account.Group);
-                player.tempGroup = null;
-                player.IsLoggedIn = true;
-                player.IsDisabledForSSC = false;
 
-                if (Main.ServerSideCharacter)
-                {
-                    if (player.HasPermission(Permissions.bypassssc))
-                    {
-                        player.PlayerData.CopyCharacter(player);
-                        TShock.CharacterDB.InsertPlayerData(player);
-                    }
-                    player.PlayerData.RestoreCharacter(player);
-                }
-                player.LoginFailsBySsi = false;
+                // set the player's account and group (if auto login enabled)
+                // AKA: actually log them in
+                Manager.SyncPlayerToAccount(player, account);
 
                 // greet the player
-#if DEBUG
-                player.SendSuccessMessage($"Welcome back, {player.Name}!");
-#endif
+                if (Settings.DoGreetPlayer)
+                    player.SendSuccessMessage($"Welcome back, {player.Name}!");
+
             }
         }
         #endregion
@@ -168,41 +130,22 @@ namespace Linked
             if (player.IsLoggedIn == false) // if they are for some reason not logged in anymore, return
                 return;
 
-            if (settings.IsDataCentral == true) // if central server
-            {
-                // retrieve player data, OR CREATE IT
-                LinkedPlayerData? data = await IModel.GetAsync(GetRequest.Linked<LinkedPlayerData>(x => x.UUID == player.UUID), x =>
-                {
-                    x.UUID = player.UUID;
-                    x.Account = player.Account;
-                });
-
-                //update the player account
-                data.Account = player.Account;
-            }
+            await Manager.CreateOrUpdate(e.Player);
 
         }
         #endregion
-        
+
         #region On Player Leave
         private async void OnLeave(LeaveEventArgs args)
         {
-            //TODO: Actually test to see if this supplies appropriate info
             TSPlayer player = TShock.Players[args.Who];
             if (player == null)
                 return;
             if (player.IsLoggedIn == false)
                 return;
 
-            var lastServer = await IModel.GetAsync(GetRequest.Linked<LastServer>(x => x.Account.ID == player.Account.ID), x => { x.Account = player.Account; x.LastServerName = Main.worldName; x.LastServerAddress = Main.getIP; x.LastServerPort = int.Parse(Main.getPort); });
-            if (lastServer.LastServerPort != int.Parse(Main.getPort) || lastServer.LastServerAddress != Main.getIP)
-            {
-                lastServer.LastServerPort = int.Parse(Main.getPort);
-                lastServer.LastServerAddress = Main.getIP;
-                lastServer.LastServerName = Main.getIP;
-            }
-
-
+            //update the player account
+            await Manager.HandleLastServer(player);
         }
         #endregion
     }

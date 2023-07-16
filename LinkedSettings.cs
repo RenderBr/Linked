@@ -16,5 +16,8 @@ namespace Linked
 
         [JsonPropertyName("AutoLogin")]
         public bool AutoLogin { get; set; } = true;
+
+        [JsonPropertyName("DoGreetPlayer")]
+        public bool DoGreetPlayer { get; set; } = false;
     }
 }

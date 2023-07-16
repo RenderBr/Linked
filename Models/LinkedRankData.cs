@@ -16,7 +16,7 @@ namespace Linked.Models
             }
         }
 
-        private Rank _group;
+        private Rank _group = new();
 
         public Rank Group
         {
