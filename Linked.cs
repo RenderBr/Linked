@@ -143,6 +143,8 @@ namespace Linked
                 return;
             if (player.IsLoggedIn == false)
                 return;
+            if (Settings.IgnoredPorts.Contains(Netplay.ListenPort))
+                return;
 
             //update the player account
             await Manager.HandleLastServer(player);

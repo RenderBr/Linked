@@ -19,5 +19,12 @@ namespace Linked
 
         [JsonPropertyName("DoGreetPlayer")]
         public bool DoGreetPlayer { get; set; } = false;
+
+        [JsonPropertyName("IgnoredPorts")]
+        public List<int> IgnoredPorts { get; set; } = new List<int>();
+
+        [JsonPropertyName("LocalOverridesStorage")] // json / mongo
+        public string LocalOverridesStorageType { get; set; } = "json";
+
     }
 }
